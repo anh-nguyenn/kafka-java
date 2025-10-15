@@ -7,7 +7,6 @@ import com.kafka.util.NetworkUtils;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Kafka-like producer client for sending messages to topics.
@@ -16,14 +15,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KafkaProducer {
     private final String bootstrapServers;
     private final String clientId;
-    private final AtomicLong messageCounter;
     private Socket socket;
     private boolean connected;
 
     public KafkaProducer(String bootstrapServers, String clientId) {
         this.bootstrapServers = bootstrapServers;
         this.clientId = clientId;
-        this.messageCounter = new AtomicLong(0);
         this.connected = false;
     }
 
@@ -71,8 +68,8 @@ public class KafkaProducer {
             connect();
         }
 
-        // Create message
-        Message message = new Message(topic, partition, 0, key, value);
+        // Create message (offset will be assigned by server)
+        new Message(topic, partition, 0, key, value);
         
         // Create produce request
         Request request = createProduceRequest(topic, partition, key, value);

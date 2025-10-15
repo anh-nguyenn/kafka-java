@@ -14,8 +14,8 @@ public class Message {
     private final long offset;
     private final byte[] key;
     private final byte[] value;
-    private final long timestamp;
-    private final int crc32;
+    private long timestamp;
+    private int crc32;
 
     public Message(String topic, int partition, long offset, byte[] key, byte[] value) {
         this.topic = Objects.requireNonNull(topic, "Topic cannot be null");
@@ -105,8 +105,8 @@ public class Message {
         java.util.zip.CRC32 crc = new java.util.zip.CRC32();
         crc.update(topic.getBytes());
         crc.update(partition);
-        crc.update(offset);
-        crc.update(timestamp);
+        crc.update((int) offset);
+        crc.update((int) timestamp);
         if (key != null) {
             crc.update(key);
         }

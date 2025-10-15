@@ -125,6 +125,7 @@ admin.disconnect();
 The broker uses a binary protocol for efficient communication:
 
 ### Message Format
+
 - Topic name (length + bytes)
 - Partition number (4 bytes)
 - Offset (8 bytes)
@@ -134,6 +135,7 @@ The broker uses a binary protocol for efficient communication:
 - Value (length + bytes)
 
 ### Request Types
+
 - `PRODUCE`: Send messages to topics
 - `FETCH`: Retrieve messages from topics
 - `CONSUME`: Consume messages with offset management
@@ -147,12 +149,14 @@ The broker uses a binary protocol for efficient communication:
 ## Configuration
 
 ### Server Configuration
+
 - **Port**: Default 9092 (configurable via command line)
 - **Thread Pool Size**: 10 threads
 - **Default Partitions**: 3 per topic
 - **Message Size Limit**: 1MB
 
 ### Logging
+
 The project uses SLF4J with Logback for logging. Logs are written to both console and `logs/kafka-broker.log`.
 
 ## Testing
@@ -164,6 +168,7 @@ The project includes comprehensive unit tests and integration tests:
 - **Protocol Tests**: Test message serialization/deserialization
 
 Run tests with:
+
 ```bash
 mvn test
 ```
@@ -171,16 +176,19 @@ mvn test
 ## Design Decisions
 
 ### Threading Model
+
 - **Server**: Uses a thread pool to handle multiple clients concurrently
 - **Clients**: Synchronous operations for simplicity
 - **Message Storage**: Thread-safe collections for concurrent access
 
 ### Message Storage
+
 - **In-Memory**: Messages are stored in memory for simplicity
 - **Partitioning**: Each partition is a separate list of messages
 - **Offset Management**: Atomic counters for offset generation
 
 ### Error Handling
+
 - **Graceful Degradation**: Server continues running even if individual requests fail
 - **Client Resilience**: Clients handle connection failures and retry
 - **Validation**: Input validation at protocol and business logic levels

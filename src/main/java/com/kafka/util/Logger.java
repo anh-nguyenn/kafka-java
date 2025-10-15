@@ -1,48 +1,49 @@
 package com.kafka.util;
 
-import org.slf4j.LoggerFactory;
-import org.slf4j.Logger;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Centralized logging utility for the Kafka-like broker.
  * Provides consistent logging across all components.
  */
 public class Logger {
-    private static final Logger logger = LoggerFactory.getLogger("KafkaBroker");
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
     
     public static void info(String message) {
-        logger.info(message);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [INFO] KafkaBroker - " + message);
     }
     
     public static void info(String format, Object... args) {
-        logger.info(format, args);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [INFO] KafkaBroker - " + String.format(format, args));
     }
     
     public static void warn(String message) {
-        logger.warn(message);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [WARN] KafkaBroker - " + message);
     }
     
     public static void warn(String format, Object... args) {
-        logger.warn(format, args);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [WARN] KafkaBroker - " + String.format(format, args));
     }
     
     public static void error(String message) {
-        logger.error(message);
+        System.err.println("[" + LocalDateTime.now().format(formatter) + "] [ERROR] KafkaBroker - " + message);
     }
     
     public static void error(String message, Throwable throwable) {
-        logger.error(message, throwable);
+        System.err.println("[" + LocalDateTime.now().format(formatter) + "] [ERROR] KafkaBroker - " + message);
+        throwable.printStackTrace();
     }
     
     public static void error(String format, Object... args) {
-        logger.error(format, args);
+        System.err.println("[" + LocalDateTime.now().format(formatter) + "] [ERROR] KafkaBroker - " + String.format(format, args));
     }
     
     public static void debug(String message) {
-        logger.debug(message);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [DEBUG] KafkaBroker - " + message);
     }
     
     public static void debug(String format, Object... args) {
-        logger.debug(format, args);
+        System.out.println("[" + LocalDateTime.now().format(formatter) + "] [DEBUG] KafkaBroker - " + String.format(format, args));
     }
 }

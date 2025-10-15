@@ -258,7 +258,7 @@ public class KafkaServer {
         int partitionCount = buffer.getInt();
         
         // Create topic
-        Topic topic = topicManager.createTopic(topicName, partitionCount);
+        topicManager.createTopic(topicName, partitionCount);
         
         return new Response(Response.Status.SUCCESS, new byte[0]);
     }

@@ -31,8 +31,8 @@ public class Response {
 
     private final Status status;
     private final byte[] data;
-    private final String errorMessage;
-    private final long timestamp;
+    private String errorMessage;
+    private long timestamp;
 
     public Response(Status status, byte[] data) {
         this.status = Objects.requireNonNull(status, "Status cannot be null");

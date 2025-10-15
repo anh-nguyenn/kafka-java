@@ -11,7 +11,7 @@ public class Request {
     private final RequestType type;
     private final byte[] data;
     private final String clientId;
-    private final long timestamp;
+    private long timestamp;
 
     public Request(RequestType type, byte[] data, String clientId) {
         this.type = Objects.requireNonNull(type, "Request type cannot be null");
