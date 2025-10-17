@@ -23,7 +23,11 @@ public enum RequestType {
     GET_OFFSET(9, "Get current offset for consumer group"),
     
     // Health check
-    PING(10, "Health check ping");
+    PING(10, "Health check ping"),
+    
+    // Monitoring
+    GET_METRICS(11, "Get broker metrics"),
+    GET_HEALTH(12, "Get broker health status");
 
     private final int code;
     private final String description;

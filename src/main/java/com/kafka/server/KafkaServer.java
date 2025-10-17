@@ -1,6 +1,8 @@
 package com.kafka.server;
 
 import com.kafka.config.KafkaConfig;
+import com.kafka.health.HealthChecker;
+import com.kafka.metrics.MetricsCollector;
 import com.kafka.protocol.*;
 import com.kafka.util.Logger;
 import com.kafka.util.NetworkUtils;
@@ -22,6 +24,7 @@ public class KafkaServer {
     private final OffsetManager offsetManager;
     private final ExecutorService threadPool;
     private final AtomicBoolean running;
+    private final MetricsCollector metricsCollector;
     private ServerSocket serverSocket;
 
     public KafkaServer(int port) {
@@ -33,6 +36,7 @@ public class KafkaServer {
         this.offsetManager = new OffsetManager();
         this.threadPool = Executors.newFixedThreadPool(threadPoolSize);
         this.running = new AtomicBoolean(false);
+        this.metricsCollector = MetricsCollector.getInstance();
         
         Logger.info("Kafka server initialized with {} threads, {} default partitions", 
                    threadPoolSize, defaultPartitions);
@@ -98,6 +102,7 @@ public class KafkaServer {
             OutputStream outputStream = socket.getOutputStream();
             
             while (running.get() && NetworkUtils.isSocketConnected(socket)) {
+                long requestStartTime = System.currentTimeMillis();
                 try {
                     // Read request
                     byte[] requestData = NetworkUtils.readMessage(inputStream);
@@ -111,6 +116,14 @@ public class KafkaServer {
                     // Send response
                     byte[] responseData = response.serialize();
                     NetworkUtils.writeMessage(outputStream, responseData);
+                    
+                    // Record metrics
+                    long requestLatency = System.currentTimeMillis() - requestStartTime;
+                    metricsCollector.recordRequest(request.getType().name(), requestLatency);
+                    
+                    if (!response.isSuccess()) {
+                        metricsCollector.recordError(response.getStatus().name());
+                    }
                     
                     Logger.debug("Sent response: {}", response);
                     
@@ -164,6 +177,10 @@ public class KafkaServer {
                     return handleGetOffsetRequest(request);
                 case PING:
                     return handlePingRequest(request);
+                case GET_METRICS:
+                    return handleGetMetricsRequest(request);
+                case GET_HEALTH:
+                    return handleGetHealthRequest(request);
                 default:
                     return new Response(Response.Status.BAD_REQUEST, "Unknown request type");
             }
@@ -202,7 +219,12 @@ public class KafkaServer {
         Message message = new Message(topicName, partition, 0, key, value);
         
         // Produce message
+        long produceStartTime = System.currentTimeMillis();
         long offset = topicManager.produceMessage(topicName, message);
+        long produceLatency = System.currentTimeMillis() - produceStartTime;
+        
+        // Record metrics
+        metricsCollector.recordMessageProduced(topicName, partition, value.length, produceLatency);
         
         // Create response
         ByteBuffer responseBuffer = ByteBuffer.allocate(8);
@@ -407,6 +429,49 @@ public class KafkaServer {
 
     private Response handlePingRequest(Request request) {
         return new Response(Response.Status.SUCCESS, "pong".getBytes());
+    }
+
+    private Response handleGetMetricsRequest(Request request) {
+        try {
+            var metrics = metricsCollector.getSnapshot();
+            String metricsJson = metricsToJson(metrics);
+            return new Response(Response.Status.SUCCESS, metricsJson.getBytes());
+        } catch (Exception e) {
+            Logger.error("Error getting metrics", e);
+            return new Response(Response.Status.INTERNAL_ERROR, "Failed to get metrics: " + e.getMessage());
+        }
+    }
+
+    private Response handleGetHealthRequest(Request request) {
+        try {
+            HealthChecker healthChecker = HealthChecker.getInstance();
+            String healthJson = healthChecker.getHealthJson();
+            return new Response(Response.Status.SUCCESS, healthJson.getBytes());
+        } catch (Exception e) {
+            Logger.error("Error getting health status", e);
+            return new Response(Response.Status.INTERNAL_ERROR, "Failed to get health status: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Converts metrics snapshot to JSON
+     */
+    private String metricsToJson(MetricsCollector.MetricsSnapshot metrics) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"messages_produced\": ").append(metrics.getMessagesProduced()).append(",\n");
+        json.append("  \"messages_consumed\": ").append(metrics.getMessagesConsumed()).append(",\n");
+        json.append("  \"bytes_produced\": ").append(metrics.getBytesProduced()).append(",\n");
+        json.append("  \"bytes_consumed\": ").append(metrics.getBytesConsumed()).append(",\n");
+        json.append("  \"requests_processed\": ").append(metrics.getRequestsProcessed()).append(",\n");
+        json.append("  \"errors_count\": ").append(metrics.getErrorsCount()).append(",\n");
+        json.append("  \"avg_produce_latency_ms\": ").append(String.format("%.2f", metrics.getAverageProduceLatency())).append(",\n");
+        json.append("  \"avg_consume_latency_ms\": ").append(String.format("%.2f", metrics.getAverageConsumeLatency())).append(",\n");
+        json.append("  \"avg_request_latency_ms\": ").append(String.format("%.2f", metrics.getAverageRequestLatency())).append(",\n");
+        json.append("  \"uptime_ms\": ").append(metrics.getUptime()).append(",\n");
+        json.append("  \"time_since_reset_ms\": ").append(metrics.getTimeSinceReset()).append("\n");
+        json.append("}");
+        return json.toString();
     }
 
     /**
