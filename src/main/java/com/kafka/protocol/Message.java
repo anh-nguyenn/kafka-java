@@ -1,5 +1,9 @@
 package com.kafka.protocol;
 
+import com.kafka.util.CompressionUtils;
+import com.kafka.util.Logger;
+
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Objects;
@@ -16,6 +20,7 @@ public class Message {
     private final byte[] value;
     private long timestamp;
     private int crc32;
+    private boolean compressed;
 
     public Message(String topic, int partition, long offset, byte[] key, byte[] value) {
         this.topic = Objects.requireNonNull(topic, "Topic cannot be null");
@@ -24,7 +29,17 @@ public class Message {
         this.key = key;
         this.value = Objects.requireNonNull(value, "Value cannot be null");
         this.timestamp = Instant.now().toEpochMilli();
+        this.compressed = false;
         this.crc32 = calculateCRC32();
+    }
+    
+    /**
+     * Creates a compressed message
+     */
+    public static Message createCompressed(String topic, int partition, long offset, byte[] key, byte[] value) throws IOException {
+        Message message = new Message(topic, partition, offset, key, value);
+        message.compressValue();
+        return message;
     }
 
     /**
@@ -43,6 +58,7 @@ public class Message {
         long offset = buffer.getLong();
         long timestamp = buffer.getLong();
         int crc32 = buffer.getInt();
+        boolean compressed = buffer.get() == 1;
         
         // Read key
         int keyLength = buffer.getInt();
@@ -60,6 +76,7 @@ public class Message {
         Message message = new Message(topic, partition, offset, key, value);
         message.timestamp = timestamp;
         message.crc32 = crc32;
+        message.compressed = compressed;
         
         return message;
     }
@@ -72,8 +89,8 @@ public class Message {
         int valueLength = value.length;
         int topicLength = topic.getBytes().length;
         
-        // Calculate total size
-        int totalSize = 4 + topicLength + 4 + 8 + 8 + 4 + 4 + keyLength + 4 + valueLength;
+        // Calculate total size (added 1 byte for compressed flag)
+        int totalSize = 4 + topicLength + 4 + 8 + 8 + 4 + 4 + 1 + keyLength + 4 + valueLength;
         
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
         
@@ -84,6 +101,7 @@ public class Message {
         buffer.putLong(offset);
         buffer.putLong(timestamp);
         buffer.putInt(crc32);
+        buffer.put((byte) (compressed ? 1 : 0));
         
         // Write key
         buffer.putInt(keyLength);
@@ -120,6 +138,60 @@ public class Message {
     public boolean isValid() {
         return crc32 == calculateCRC32();
     }
+    
+    /**
+     * Compresses the message value
+     */
+    public void compressValue() throws IOException {
+        if (!compressed && value.length > 0) {
+            byte[] compressedValue = CompressionUtils.compress(value);
+            if (compressedValue.length < value.length) {
+                // Update the value field using reflection since it's final
+                try {
+                    java.lang.reflect.Field valueField = Message.class.getDeclaredField("value");
+                    valueField.setAccessible(true);
+                    valueField.set(this, compressedValue);
+                    this.compressed = true;
+                    this.crc32 = calculateCRC32();
+                    Logger.debug("Compressed message value from {} to {} bytes (ratio: {})", 
+                               value.length, compressedValue.length, 
+                               CompressionUtils.getCompressionRatio(value.length, compressedValue.length));
+                } catch (Exception e) {
+                    throw new IOException("Failed to compress message value", e);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Decompresses the message value if it's compressed
+     */
+    public void decompressValue() throws IOException {
+        if (compressed && value.length > 0) {
+            byte[] decompressedValue = CompressionUtils.decompress(value);
+            try {
+                java.lang.reflect.Field valueField = Message.class.getDeclaredField("value");
+                valueField.setAccessible(true);
+                valueField.set(this, decompressedValue);
+                this.compressed = false;
+                this.crc32 = calculateCRC32();
+                Logger.debug("Decompressed message value from {} to {} bytes", 
+                           value.length, decompressedValue.length);
+            } catch (Exception e) {
+                throw new IOException("Failed to decompress message value", e);
+            }
+        }
+    }
+    
+    /**
+     * Gets the decompressed value
+     */
+    public byte[] getDecompressedValue() throws IOException {
+        if (compressed) {
+            return CompressionUtils.decompress(value);
+        }
+        return value;
+    }
 
     // Getters
     public String getTopic() { return topic; }
@@ -129,13 +201,14 @@ public class Message {
     public byte[] getValue() { return value; }
     public long getTimestamp() { return timestamp; }
     public int getCrc32() { return crc32; }
+    public boolean isCompressed() { return compressed; }
 
     @Override
     public String toString() {
-        return String.format("Message{topic='%s', partition=%d, offset=%d, key=%s, value=%s, timestamp=%d}",
+        return String.format("Message{topic='%s', partition=%d, offset=%d, key=%s, value=%s, timestamp=%d, compressed=%s}",
                 topic, partition, offset, 
                 key != null ? new String(key) : "null",
-                new String(value), timestamp);
+                compressed ? "[compressed]" : new String(value), timestamp, compressed);
     }
 
     @Override
