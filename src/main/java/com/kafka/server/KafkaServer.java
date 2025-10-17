@@ -1,5 +1,6 @@
 package com.kafka.server;
 
+import com.kafka.config.KafkaConfig;
 import com.kafka.protocol.*;
 import com.kafka.util.Logger;
 import com.kafka.util.NetworkUtils;
@@ -25,10 +26,16 @@ public class KafkaServer {
 
     public KafkaServer(int port) {
         this.port = port;
-        this.topicManager = new TopicManager(3); // Default 3 partitions per topic
+        int defaultPartitions = KafkaConfig.getInt(KafkaConfig.DEFAULT_PARTITIONS, 3);
+        int threadPoolSize = KafkaConfig.getInt(KafkaConfig.THREAD_POOL_SIZE, 10);
+        
+        this.topicManager = new TopicManager(defaultPartitions);
         this.offsetManager = new OffsetManager();
-        this.threadPool = Executors.newFixedThreadPool(10);
+        this.threadPool = Executors.newFixedThreadPool(threadPoolSize);
         this.running = new AtomicBoolean(false);
+        
+        Logger.info("Kafka server initialized with {} threads, {} default partitions", 
+                   threadPoolSize, defaultPartitions);
     }
 
     /**
@@ -364,7 +371,11 @@ public class KafkaServer {
      * Main method to start the server
      */
     public static void main(String[] args) {
-        int port = args.length > 0 ? Integer.parseInt(args[0]) : 9092;
+        // Print configuration on startup
+        KafkaConfig.printConfiguration();
+        
+        int port = args.length > 0 ? Integer.parseInt(args[0]) : 
+                  KafkaConfig.getInt(KafkaConfig.SERVER_PORT, 9092);
         
         KafkaServer server = new KafkaServer(port);
         
