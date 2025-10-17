@@ -146,6 +146,8 @@ public class KafkaServer {
             switch (request.getType()) {
                 case PRODUCE:
                     return handleProduceRequest(request);
+                case PRODUCE_BATCH:
+                    return handleBatchProduceRequest(request);
                 case FETCH:
                     return handleFetchRequest(request);
                 case CONSUME:
@@ -207,6 +209,46 @@ public class KafkaServer {
         responseBuffer.putLong(offset);
         
         return new Response(Response.Status.SUCCESS, responseBuffer.array());
+    }
+
+    private Response handleBatchProduceRequest(Request request) {
+        ByteBuffer buffer = ByteBuffer.wrap(request.getData());
+        
+        // Read batch data length
+        int batchDataLength = buffer.getInt();
+        byte[] batchData = new byte[batchDataLength];
+        buffer.get(batchData);
+        
+        try {
+            // Deserialize batch message
+            BatchMessage batchMessage = BatchMessage.deserialize(batchData);
+            
+            // Validate batch
+            if (!batchMessage.isValid()) {
+                return new Response(Response.Status.BAD_REQUEST, "Invalid batch message");
+            }
+            
+            // Process each message in the batch
+            long totalOffset = 0;
+            for (Message message : batchMessage.getMessages()) {
+                long offset = topicManager.produceMessage(batchMessage.getTopic(), message);
+                totalOffset += offset;
+            }
+            
+            // Create response with batch statistics
+            ByteBuffer responseBuffer = ByteBuffer.allocate(16);
+            responseBuffer.putLong(totalOffset);
+            responseBuffer.putInt(batchMessage.getMessageCount());
+            
+            Logger.info("Processed batch of {} messages for topic '{}' partition {}", 
+                       batchMessage.getMessageCount(), batchMessage.getTopic(), batchMessage.getPartition());
+            
+            return new Response(Response.Status.SUCCESS, responseBuffer.array());
+            
+        } catch (IOException e) {
+            Logger.error("Error processing batch message", e);
+            return new Response(Response.Status.INTERNAL_ERROR, "Failed to process batch: " + e.getMessage());
+        }
     }
 
     private Response handleFetchRequest(Request request) {
