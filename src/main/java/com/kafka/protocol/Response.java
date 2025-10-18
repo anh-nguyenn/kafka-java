@@ -27,6 +27,18 @@ public class Response {
 
         public int getCode() { return code; }
         public String getMessage() { return message; }
+        
+        /**
+         * Get Status by code
+         */
+        public static Status fromCode(int code) {
+            for (Status status : values()) {
+                if (status.code == code) {
+                    return status;
+                }
+            }
+            throw new IllegalArgumentException("Unknown status code: " + code);
+        }
     }
 
     private final Status status;
@@ -56,7 +68,7 @@ public class Response {
         
         // Read status code
         int statusCode = buffer.getInt();
-        Status status = Status.values()[statusCode];
+        Status status = Status.fromCode(statusCode);
         
         // Read timestamp
         long timestamp = buffer.getLong();
@@ -91,7 +103,7 @@ public class Response {
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
         
         // Write status code
-        buffer.putInt(status.ordinal());
+        buffer.putInt(status.getCode());
         
         // Write timestamp
         buffer.putLong(timestamp);
