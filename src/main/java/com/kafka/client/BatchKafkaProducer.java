@@ -26,7 +26,7 @@ public class BatchKafkaProducer {
     private final long batchTimeoutMs;
     private final boolean enableCompression;
     private final int compressionThreshold;
-    
+
     private Socket socket;
     private boolean connected;
     private final List<Message> pendingMessages;
@@ -40,7 +40,7 @@ public class BatchKafkaProducer {
         this.batchTimeoutMs = KafkaConfig.getLong(KafkaConfig.BATCH_TIMEOUT_MS, 1000);
         this.enableCompression = KafkaConfig.getBoolean(KafkaConfig.ENABLE_COMPRESSION, true);
         this.compressionThreshold = KafkaConfig.getInt(KafkaConfig.COMPRESSION_THRESHOLD, 1024);
-        
+
         this.connected = false;
         this.pendingMessages = new ArrayList<>();
         this.scheduler = Executors.newScheduledThreadPool(1);
@@ -62,10 +62,10 @@ public class BatchKafkaProducer {
         socket = new Socket(host, port);
         connected = true;
         running.set(true);
-        
+
         // Start batch processing
         startBatchProcessor();
-        
+
         Logger.info("Batch producer connected to {}:{}", host, port);
     }
 
@@ -75,18 +75,18 @@ public class BatchKafkaProducer {
     public void disconnect() {
         if (connected) {
             running.set(false);
-            
+
             // Send any remaining messages
             try {
                 flush();
             } catch (IOException e) {
                 Logger.warn("Error flushing messages during disconnect", e);
             }
-            
+
             NetworkUtils.closeSocket(socket);
             connected = false;
             scheduler.shutdown();
-            
+
             Logger.info("Batch producer disconnected");
         }
     }
@@ -108,7 +108,7 @@ public class BatchKafkaProducer {
 
         // Create message
         Message message = new Message(topic, partition, 0, key, value);
-        
+
         // Apply compression if enabled and message is large enough
         if (enableCompression && value.length >= compressionThreshold) {
             try {
@@ -117,10 +117,10 @@ public class BatchKafkaProducer {
                 Logger.warn("Failed to compress message, sending uncompressed", e);
             }
         }
-        
+
         synchronized (pendingMessages) {
             pendingMessages.add(message);
-            
+
             // Send batch if it's full
             if (pendingMessages.size() >= batchSize) {
                 sendBatch();
@@ -189,14 +189,14 @@ public class BatchKafkaProducer {
         for (var entry : groupedMessages.entrySet()) {
             String topicPartition = entry.getKey();
             List<Message> messages = entry.getValue();
-            
+
             String[] parts = topicPartition.split(":");
             String topic = parts[0];
             int partition = Integer.parseInt(parts[1]);
-            
+
             // Create batch message
             BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
-            
+
             // Send batch
             sendBatchMessage(batchMessage);
         }
@@ -207,12 +207,12 @@ public class BatchKafkaProducer {
      */
     private java.util.Map<String, List<Message>> groupMessagesByTopicAndPartition(List<Message> messages) {
         java.util.Map<String, List<Message>> grouped = new java.util.HashMap<>();
-        
+
         for (Message message : messages) {
             String key = message.getTopic() + ":" + message.getPartition();
             grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(message);
         }
-        
+
         return grouped;
     }
 
@@ -222,17 +222,17 @@ public class BatchKafkaProducer {
     private void sendBatchMessage(BatchMessage batchMessage) throws IOException {
         // Create batch produce request
         Request request = createBatchProduceRequest(batchMessage);
-        
+
         // Send request and get response
         byte[] responseData = NetworkUtils.sendRequest(socket, request.serialize());
         Response response = Response.deserialize(responseData);
-        
+
         if (!response.isSuccess()) {
             throw new IOException("Failed to send batch: " + response.getErrorMessage());
         }
-        
-        Logger.debug("Sent batch of {} messages to topic '{}' partition {}", 
-                   batchMessage.getMessageCount(), batchMessage.getTopic(), batchMessage.getPartition());
+
+        Logger.debug("Sent batch of {} messages to topic '{}' partition {}",
+                batchMessage.getMessageCount(), batchMessage.getTopic(), batchMessage.getPartition());
     }
 
     /**
@@ -240,14 +240,14 @@ public class BatchKafkaProducer {
      */
     private Request createBatchProduceRequest(BatchMessage batchMessage) throws IOException {
         byte[] batchData = batchMessage.serialize();
-        
+
         int totalSize = 4 + batchData.length;
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
-        
+
         // Write batch data length
         buffer.putInt(batchData.length);
         buffer.put(batchData);
-        
+
         return new Request(RequestType.PRODUCE, buffer.array(), clientId);
     }
 
@@ -286,7 +286,8 @@ public class BatchKafkaProducer {
 
     @Override
     public String toString() {
-        return String.format("BatchKafkaProducer{clientId='%s', connected=%s, pending=%d}", 
-                           clientId, connected, getPendingMessageCount());
+        return String.format("BatchKafkaProducer{clientId='%s', connected=%s, pending=%d}",
+                clientId, connected, getPendingMessageCount());
     }
 }
+

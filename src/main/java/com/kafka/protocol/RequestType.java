@@ -8,23 +8,23 @@ public enum RequestType {
     // Producer operations
     PRODUCE(1, "Produce messages to a topic"),
     PRODUCE_BATCH(2, "Produce batch of messages to a topic"),
-    
+
     // Consumer operations
     FETCH(3, "Fetch messages from a topic"),
     CONSUME(4, "Consume messages with offset management"),
-    
+
     // Topic management
     CREATE_TOPIC(5, "Create a new topic"),
     LIST_TOPICS(6, "List all available topics"),
     DESCRIBE_TOPIC(7, "Get topic metadata"),
-    
+
     // Offset management
     COMMIT_OFFSET(8, "Commit consumer offset"),
     GET_OFFSET(9, "Get current offset for consumer group"),
-    
+
     // Health check
     PING(10, "Health check ping"),
-    
+
     // Monitoring
     GET_METRICS(11, "Get broker metrics"),
     GET_HEALTH(12, "Get broker health status");

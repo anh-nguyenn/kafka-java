@@ -17,10 +17,9 @@ public class BatchMessageTest {
         String topic = "test-topic";
         int partition = 0;
         List<Message> messages = Arrays.asList(
-            new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
-            new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes()),
-            new Message(topic, partition, 2, "key3".getBytes(), "value3".getBytes())
-        );
+                new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
+                new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes()),
+                new Message(topic, partition, 2, "key3".getBytes(), "value3".getBytes()));
 
         BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
 
@@ -36,18 +35,17 @@ public class BatchMessageTest {
         String topic = "test-topic";
         int partition = 1;
         List<Message> messages = Arrays.asList(
-            new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
-            new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes())
-        );
+                new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
+                new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes()));
 
         BatchMessage originalBatch = new BatchMessage(topic, partition, messages);
         byte[] serialized = originalBatch.serialize();
-        
+
         assertNotNull(serialized);
         assertTrue(serialized.length > 0);
 
         BatchMessage deserializedBatch = BatchMessage.deserialize(serialized);
-        
+
         assertEquals(originalBatch.getTopic(), deserializedBatch.getTopic());
         assertEquals(originalBatch.getPartition(), deserializedBatch.getPartition());
         assertEquals(originalBatch.getMessageCount(), deserializedBatch.getMessageCount());
@@ -60,10 +58,9 @@ public class BatchMessageTest {
         String topic = "test-topic";
         int partition = 0;
         List<Message> messages = Arrays.asList(
-            new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
-            new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes()),
-            new Message(topic, partition, 2, "key3".getBytes(), "value3".getBytes())
-        );
+                new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()),
+                new Message(topic, partition, 1, "key2".getBytes(), "value2".getBytes()),
+                new Message(topic, partition, 2, "key3".getBytes(), "value3".getBytes()));
 
         BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
 
@@ -95,13 +92,14 @@ public class BatchMessageTest {
     public void testBatchMessageWithCompressedMessages() throws IOException {
         String topic = "test-topic";
         int partition = 0;
-        
+
         // Create messages with compression
-        Message msg1 = Message.createCompressed(topic, partition, 0, "key1".getBytes(), 
-            "This is a long message that should compress well because it has repeated patterns. ".repeat(10).getBytes());
-        Message msg2 = Message.createCompressed(topic, partition, 1, "key2".getBytes(), 
-            "Another long message with repeated content for compression testing. ".repeat(10).getBytes());
-        
+        Message msg1 = Message.createCompressed(topic, partition, 0, "key1".getBytes(),
+                "This is a long message that should compress well because it has repeated patterns. ".repeat(10)
+                        .getBytes());
+        Message msg2 = Message.createCompressed(topic, partition, 1, "key2".getBytes(),
+                "Another long message with repeated content for compression testing. ".repeat(10).getBytes());
+
         List<Message> messages = Arrays.asList(msg1, msg2);
         BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
 
@@ -114,8 +112,7 @@ public class BatchMessageTest {
         String topic = "test-topic";
         int partition = 0;
         List<Message> messages = Arrays.asList(
-            new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes())
-        );
+                new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()));
 
         BatchMessage batch1 = new BatchMessage(topic, partition, messages);
         BatchMessage batch2 = new BatchMessage(topic, partition, messages);
@@ -130,8 +127,7 @@ public class BatchMessageTest {
         String topic = "test-topic";
         int partition = 2;
         List<Message> messages = Arrays.asList(
-            new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes())
-        );
+                new Message(topic, partition, 0, "key1".getBytes(), "value1".getBytes()));
 
         BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
         String toString = batchMessage.toString();
@@ -142,3 +138,4 @@ public class BatchMessageTest {
         assertTrue(toString.contains("BatchMessage"));
     }
 }
+

@@ -25,9 +25,14 @@ public class Response {
             this.message = message;
         }
 
-        public int getCode() { return code; }
-        public String getMessage() { return message; }
-        
+        public int getCode() {
+            return code;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
         /**
          * Get Status by code
          */
@@ -65,14 +70,14 @@ public class Response {
      */
     public static Response deserialize(byte[] rawData) {
         ByteBuffer buffer = ByteBuffer.wrap(rawData);
-        
+
         // Read status code
         int statusCode = buffer.getInt();
         Status status = Status.fromCode(statusCode);
-        
+
         // Read timestamp
         long timestamp = buffer.getLong();
-        
+
         // Read error message length and error message
         int errorMessageLength = buffer.getInt();
         String errorMessage = null;
@@ -81,12 +86,12 @@ public class Response {
             buffer.get(errorMessageBytes);
             errorMessage = new String(errorMessageBytes);
         }
-        
+
         // Read data length and data
         int dataLength = buffer.getInt();
         byte[] data = new byte[dataLength];
         buffer.get(data);
-        
+
         Response response = new Response(status, data);
         response.timestamp = timestamp;
         response.errorMessage = errorMessage;
@@ -99,33 +104,44 @@ public class Response {
     public byte[] serialize() {
         byte[] errorMessageBytes = errorMessage != null ? errorMessage.getBytes() : new byte[0];
         int totalSize = 4 + 8 + 4 + errorMessageBytes.length + 4 + data.length;
-        
+
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
-        
+
         // Write status code
         buffer.putInt(status.getCode());
-        
+
         // Write timestamp
         buffer.putLong(timestamp);
-        
+
         // Write error message
         buffer.putInt(errorMessageBytes.length);
         if (errorMessageBytes.length > 0) {
             buffer.put(errorMessageBytes);
         }
-        
+
         // Write data
         buffer.putInt(data.length);
         buffer.put(data);
-        
+
         return buffer.array();
     }
 
     // Getters
-    public Status getStatus() { return status; }
-    public byte[] getData() { return data; }
-    public String getErrorMessage() { return errorMessage; }
-    public long getTimestamp() { return timestamp; }
+    public Status getStatus() {
+        return status;
+    }
+
+    public byte[] getData() {
+        return data;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
 
     public boolean isSuccess() {
         return status == Status.SUCCESS;

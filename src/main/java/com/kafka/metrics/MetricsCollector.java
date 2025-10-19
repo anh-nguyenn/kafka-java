@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public class MetricsCollector {
     private static final MetricsCollector INSTANCE = new MetricsCollector();
-    
+
     // Counters for various metrics
     private final LongAdder messagesProduced = new LongAdder();
     private final LongAdder messagesConsumed = new LongAdder();
@@ -24,22 +24,22 @@ public class MetricsCollector {
     private final LongAdder bytesConsumed = new LongAdder();
     private final LongAdder requestsProcessed = new LongAdder();
     private final LongAdder errorsCount = new LongAdder();
-    
+
     // Latency tracking
     private final AtomicLong totalProduceLatency = new AtomicLong(0);
     private final AtomicLong totalConsumeLatency = new AtomicLong(0);
     private final AtomicLong totalRequestLatency = new AtomicLong(0);
-    
+
     // Request counts by type
     private final ConcurrentHashMap<String, LongAdder> requestCounts = new ConcurrentHashMap<>();
-    
+
     // Topic-specific metrics
     private final ConcurrentHashMap<String, TopicMetrics> topicMetrics = new ConcurrentHashMap<>();
-    
+
     // System metrics
     private final AtomicLong startTime = new AtomicLong(System.currentTimeMillis());
     private final AtomicLong lastResetTime = new AtomicLong(System.currentTimeMillis());
-    
+
     private final ScheduledExecutorService scheduler;
     private final boolean metricsEnabled;
     private final long metricsIntervalMs;
@@ -48,7 +48,7 @@ public class MetricsCollector {
         this.metricsEnabled = KafkaConfig.getBoolean(KafkaConfig.ENABLE_METRICS, true);
         this.metricsIntervalMs = KafkaConfig.getLong(KafkaConfig.METRICS_INTERVAL_MS, 60000);
         this.scheduler = Executors.newScheduledThreadPool(1);
-        
+
         if (metricsEnabled) {
             startMetricsReporting();
         }
@@ -62,12 +62,13 @@ public class MetricsCollector {
      * Records a message production
      */
     public void recordMessageProduced(String topic, int partition, int messageSize, long latencyMs) {
-        if (!metricsEnabled) return;
-        
+        if (!metricsEnabled)
+            return;
+
         messagesProduced.increment();
         bytesProduced.add(messageSize);
         totalProduceLatency.addAndGet(latencyMs);
-        
+
         getTopicMetrics(topic).recordMessageProduced(messageSize, latencyMs);
     }
 
@@ -75,12 +76,13 @@ public class MetricsCollector {
      * Records a message consumption
      */
     public void recordMessageConsumed(String topic, int partition, int messageSize, long latencyMs) {
-        if (!metricsEnabled) return;
-        
+        if (!metricsEnabled)
+            return;
+
         messagesConsumed.increment();
         bytesConsumed.add(messageSize);
         totalConsumeLatency.addAndGet(latencyMs);
-        
+
         getTopicMetrics(topic).recordMessageConsumed(messageSize, latencyMs);
     }
 
@@ -88,11 +90,12 @@ public class MetricsCollector {
      * Records a request processing
      */
     public void recordRequest(String requestType, long latencyMs) {
-        if (!metricsEnabled) return;
-        
+        if (!metricsEnabled)
+            return;
+
         requestsProcessed.increment();
         totalRequestLatency.addAndGet(latencyMs);
-        
+
         requestCounts.computeIfAbsent(requestType, k -> new LongAdder()).increment();
     }
 
@@ -100,8 +103,9 @@ public class MetricsCollector {
      * Records an error
      */
     public void recordError(String errorType) {
-        if (!metricsEnabled) return;
-        
+        if (!metricsEnabled)
+            return;
+
         errorsCount.increment();
     }
 
@@ -112,22 +116,21 @@ public class MetricsCollector {
         long currentTime = System.currentTimeMillis();
         long uptime = currentTime - startTime.get();
         long timeSinceReset = currentTime - lastResetTime.get();
-        
+
         return new MetricsSnapshot(
-            messagesProduced.sum(),
-            messagesConsumed.sum(),
-            bytesProduced.sum(),
-            bytesConsumed.sum(),
-            requestsProcessed.sum(),
-            errorsCount.sum(),
-            getAverageLatency(totalProduceLatency.get(), messagesProduced.sum()),
-            getAverageLatency(totalConsumeLatency.get(), messagesConsumed.sum()),
-            getAverageLatency(totalRequestLatency.get(), requestsProcessed.sum()),
-            uptime,
-            timeSinceReset,
-            new ConcurrentHashMap<>(requestCounts),
-            new ConcurrentHashMap<>(topicMetrics)
-        );
+                messagesProduced.sum(),
+                messagesConsumed.sum(),
+                bytesProduced.sum(),
+                bytesConsumed.sum(),
+                requestsProcessed.sum(),
+                errorsCount.sum(),
+                getAverageLatency(totalProduceLatency.get(), messagesProduced.sum()),
+                getAverageLatency(totalConsumeLatency.get(), messagesConsumed.sum()),
+                getAverageLatency(totalRequestLatency.get(), requestsProcessed.sum()),
+                uptime,
+                timeSinceReset,
+                new ConcurrentHashMap<>(requestCounts),
+                new ConcurrentHashMap<>(topicMetrics));
     }
 
     /**
@@ -140,16 +143,16 @@ public class MetricsCollector {
         bytesConsumed.reset();
         requestsProcessed.reset();
         errorsCount.reset();
-        
+
         totalProduceLatency.set(0);
         totalConsumeLatency.set(0);
         totalRequestLatency.set(0);
-        
+
         requestCounts.clear();
         topicMetrics.clear();
-        
+
         lastResetTime.set(System.currentTimeMillis());
-        
+
         Logger.info("Metrics reset at {}", System.currentTimeMillis());
     }
 
@@ -171,7 +174,7 @@ public class MetricsCollector {
      */
     private void reportMetrics() {
         MetricsSnapshot snapshot = getSnapshot();
-        
+
         Logger.info("=== Kafka Broker Metrics ===");
         Logger.info("Uptime: {} ms", snapshot.getUptime());
         Logger.info("Messages produced: {}", snapshot.getMessagesProduced());
@@ -183,14 +186,14 @@ public class MetricsCollector {
         Logger.info("Avg produce latency: {} ms", snapshot.getAverageProduceLatency());
         Logger.info("Avg consume latency: {} ms", snapshot.getAverageConsumeLatency());
         Logger.info("Avg request latency: {} ms", snapshot.getAverageRequestLatency());
-        
+
         // Report per-topic metrics
         snapshot.getTopicMetrics().forEach((topic, metrics) -> {
-            Logger.info("Topic '{}': produced={}, consumed={}, avg_latency={}ms", 
-                       topic, metrics.getMessagesProduced(), metrics.getMessagesConsumed(), 
-                       metrics.getAverageLatency());
+            Logger.info("Topic '{}': produced={}, consumed={}, avg_latency={}ms",
+                    topic, metrics.getMessagesProduced(), metrics.getMessagesConsumed(),
+                    metrics.getAverageLatency());
         });
-        
+
         Logger.info("==========================");
     }
 
@@ -245,11 +248,22 @@ public class MetricsCollector {
             totalLatency.addAndGet(latencyMs);
         }
 
-        public long getMessagesProduced() { return messagesProduced.sum(); }
-        public long getMessagesConsumed() { return messagesConsumed.sum(); }
-        public long getBytesProduced() { return bytesProduced.sum(); }
-        public long getBytesConsumed() { return bytesConsumed.sum(); }
-        
+        public long getMessagesProduced() {
+            return messagesProduced.sum();
+        }
+
+        public long getMessagesConsumed() {
+            return messagesConsumed.sum();
+        }
+
+        public long getBytesProduced() {
+            return bytesProduced.sum();
+        }
+
+        public long getBytesConsumed() {
+            return bytesConsumed.sum();
+        }
+
         public double getAverageLatency() {
             long totalMessages = messagesProduced.sum() + messagesConsumed.sum();
             return totalMessages > 0 ? (double) totalLatency.get() / totalMessages : 0.0;
@@ -274,12 +288,12 @@ public class MetricsCollector {
         private final ConcurrentHashMap<String, LongAdder> requestCounts;
         private final ConcurrentHashMap<String, TopicMetrics> topicMetrics;
 
-        public MetricsSnapshot(long messagesProduced, long messagesConsumed, long bytesProduced, 
-                             long bytesConsumed, long requestsProcessed, long errorsCount,
-                             double averageProduceLatency, double averageConsumeLatency, 
-                             double averageRequestLatency, long uptime, long timeSinceReset,
-                             ConcurrentHashMap<String, LongAdder> requestCounts,
-                             ConcurrentHashMap<String, TopicMetrics> topicMetrics) {
+        public MetricsSnapshot(long messagesProduced, long messagesConsumed, long bytesProduced,
+                long bytesConsumed, long requestsProcessed, long errorsCount,
+                double averageProduceLatency, double averageConsumeLatency,
+                double averageRequestLatency, long uptime, long timeSinceReset,
+                ConcurrentHashMap<String, LongAdder> requestCounts,
+                ConcurrentHashMap<String, TopicMetrics> topicMetrics) {
             this.messagesProduced = messagesProduced;
             this.messagesConsumed = messagesConsumed;
             this.bytesProduced = bytesProduced;
@@ -296,18 +310,57 @@ public class MetricsCollector {
         }
 
         // Getters
-        public long getMessagesProduced() { return messagesProduced; }
-        public long getMessagesConsumed() { return messagesConsumed; }
-        public long getBytesProduced() { return bytesProduced; }
-        public long getBytesConsumed() { return bytesConsumed; }
-        public long getRequestsProcessed() { return requestsProcessed; }
-        public long getErrorsCount() { return errorsCount; }
-        public double getAverageProduceLatency() { return averageProduceLatency; }
-        public double getAverageConsumeLatency() { return averageConsumeLatency; }
-        public double getAverageRequestLatency() { return averageRequestLatency; }
-        public long getUptime() { return uptime; }
-        public long getTimeSinceReset() { return timeSinceReset; }
-        public ConcurrentHashMap<String, LongAdder> getRequestCounts() { return requestCounts; }
-        public ConcurrentHashMap<String, TopicMetrics> getTopicMetrics() { return topicMetrics; }
+        public long getMessagesProduced() {
+            return messagesProduced;
+        }
+
+        public long getMessagesConsumed() {
+            return messagesConsumed;
+        }
+
+        public long getBytesProduced() {
+            return bytesProduced;
+        }
+
+        public long getBytesConsumed() {
+            return bytesConsumed;
+        }
+
+        public long getRequestsProcessed() {
+            return requestsProcessed;
+        }
+
+        public long getErrorsCount() {
+            return errorsCount;
+        }
+
+        public double getAverageProduceLatency() {
+            return averageProduceLatency;
+        }
+
+        public double getAverageConsumeLatency() {
+            return averageConsumeLatency;
+        }
+
+        public double getAverageRequestLatency() {
+            return averageRequestLatency;
+        }
+
+        public long getUptime() {
+            return uptime;
+        }
+
+        public long getTimeSinceReset() {
+            return timeSinceReset;
+        }
+
+        public ConcurrentHashMap<String, LongAdder> getRequestCounts() {
+            return requestCounts;
+        }
+
+        public ConcurrentHashMap<String, TopicMetrics> getTopicMetrics() {
+            return topicMetrics;
+        }
     }
 }
+

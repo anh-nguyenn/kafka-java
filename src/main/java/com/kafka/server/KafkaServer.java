@@ -31,15 +31,15 @@ public class KafkaServer {
         this.port = port;
         int defaultPartitions = KafkaConfig.getInt(KafkaConfig.DEFAULT_PARTITIONS, 3);
         int threadPoolSize = KafkaConfig.getInt(KafkaConfig.THREAD_POOL_SIZE, 10);
-        
+
         this.topicManager = new TopicManager(defaultPartitions);
         this.offsetManager = new OffsetManager();
         this.threadPool = Executors.newFixedThreadPool(threadPoolSize);
         this.running = new AtomicBoolean(false);
         this.metricsCollector = MetricsCollector.getInstance();
-        
-        Logger.info("Kafka server initialized with {} threads, {} default partitions", 
-                   threadPoolSize, defaultPartitions);
+
+        Logger.info("Kafka server initialized with {} threads, {} default partitions",
+                threadPoolSize, defaultPartitions);
     }
 
     /**
@@ -48,9 +48,9 @@ public class KafkaServer {
     public void start() throws IOException {
         serverSocket = new ServerSocket(port);
         running.set(true);
-        
+
         Logger.info("Kafka server started on port {}", port);
-        
+
         // Start accepting connections in a separate thread
         threadPool.submit(this::acceptConnections);
     }
@@ -60,7 +60,7 @@ public class KafkaServer {
      */
     public void stop() {
         running.set(false);
-        
+
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
@@ -68,7 +68,7 @@ public class KafkaServer {
         } catch (IOException e) {
             Logger.error("Error closing server socket", e);
         }
-        
+
         threadPool.shutdown();
         Logger.info("Kafka server stopped");
     }
@@ -81,10 +81,10 @@ public class KafkaServer {
             try {
                 Socket clientSocket = serverSocket.accept();
                 Logger.info("New client connected: {}", clientSocket.getRemoteSocketAddress());
-                
+
                 // Handle each client in a separate thread
                 threadPool.submit(() -> handleClient(clientSocket));
-                
+
             } catch (IOException e) {
                 if (running.get()) {
                     Logger.error("Error accepting client connection", e);
@@ -100,42 +100,42 @@ public class KafkaServer {
         try (Socket socket = clientSocket) {
             InputStream inputStream = socket.getInputStream();
             OutputStream outputStream = socket.getOutputStream();
-            
+
             while (running.get() && NetworkUtils.isSocketConnected(socket)) {
                 long requestStartTime = System.currentTimeMillis();
                 try {
                     // Read request
                     byte[] requestData = NetworkUtils.readMessage(inputStream);
                     Request request = Request.deserialize(requestData);
-                    
+
                     Logger.debug("Received request: {}", request);
-                    
+
                     // Process request
                     Response response = processRequest(request);
-                    
+
                     // Send response
                     byte[] responseData = response.serialize();
                     NetworkUtils.writeMessage(outputStream, responseData);
-                    
+
                     // Record metrics
                     long requestLatency = System.currentTimeMillis() - requestStartTime;
                     metricsCollector.recordRequest(request.getType().name(), requestLatency);
-                    
+
                     if (!response.isSuccess()) {
                         metricsCollector.recordError(response.getStatus().name());
                     }
-                    
+
                     Logger.debug("Sent response: {}", response);
-                    
+
                 } catch (IOException e) {
                     Logger.warn("Client disconnected: {}", e.getMessage());
                     break;
                 } catch (Exception e) {
                     Logger.error("Error processing request", e);
-                    
+
                     // Send error response
-                    Response errorResponse = new Response(Response.Status.INTERNAL_ERROR, 
-                                                       "Internal server error: " + e.getMessage());
+                    Response errorResponse = new Response(Response.Status.INTERNAL_ERROR,
+                            "Internal server error: " + e.getMessage());
                     try {
                         byte[] errorData = errorResponse.serialize();
                         NetworkUtils.writeMessage(outputStream, errorData);
@@ -192,16 +192,16 @@ public class KafkaServer {
 
     private Response handleProduceRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Read partition
         int partition = buffer.getInt();
-        
+
         // Read key
         int keyLength = buffer.getInt();
         byte[] key = null;
@@ -209,64 +209,64 @@ public class KafkaServer {
             key = new byte[keyLength];
             buffer.get(key);
         }
-        
+
         // Read value
         int valueLength = buffer.getInt();
         byte[] value = new byte[valueLength];
         buffer.get(value);
-        
+
         // Create message
         Message message = new Message(topicName, partition, 0, key, value);
-        
+
         // Produce message
         long produceStartTime = System.currentTimeMillis();
         long offset = topicManager.produceMessage(topicName, message);
         long produceLatency = System.currentTimeMillis() - produceStartTime;
-        
+
         // Record metrics
         metricsCollector.recordMessageProduced(topicName, partition, value.length, produceLatency);
-        
+
         // Create response
         ByteBuffer responseBuffer = ByteBuffer.allocate(8);
         responseBuffer.putLong(offset);
-        
+
         return new Response(Response.Status.SUCCESS, responseBuffer.array());
     }
 
     private Response handleBatchProduceRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read batch data length
         int batchDataLength = buffer.getInt();
         byte[] batchData = new byte[batchDataLength];
         buffer.get(batchData);
-        
+
         try {
             // Deserialize batch message
             BatchMessage batchMessage = BatchMessage.deserialize(batchData);
-            
+
             // Validate batch
             if (!batchMessage.isValid()) {
                 return new Response(Response.Status.BAD_REQUEST, "Invalid batch message");
             }
-            
+
             // Process each message in the batch
             long totalOffset = 0;
             for (Message message : batchMessage.getMessages()) {
                 long offset = topicManager.produceMessage(batchMessage.getTopic(), message);
                 totalOffset += offset;
             }
-            
+
             // Create response with batch statistics
             ByteBuffer responseBuffer = ByteBuffer.allocate(16);
             responseBuffer.putLong(totalOffset);
             responseBuffer.putInt(batchMessage.getMessageCount());
-            
-            Logger.info("Processed batch of {} messages for topic '{}' partition {}", 
-                       batchMessage.getMessageCount(), batchMessage.getTopic(), batchMessage.getPartition());
-            
+
+            Logger.info("Processed batch of {} messages for topic '{}' partition {}",
+                    batchMessage.getMessageCount(), batchMessage.getTopic(), batchMessage.getPartition());
+
             return new Response(Response.Status.SUCCESS, responseBuffer.array());
-            
+
         } catch (IOException e) {
             Logger.error("Error processing batch message", e);
             return new Response(Response.Status.INTERNAL_ERROR, "Failed to process batch: " + e.getMessage());
@@ -275,39 +275,39 @@ public class KafkaServer {
 
     private Response handleFetchRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Read partition
         int partition = buffer.getInt();
-        
+
         // Read offset
         long offset = buffer.getLong();
-        
+
         // Read max messages
         int maxMessages = buffer.getInt();
-        
+
         // Fetch messages
         var messages = topicManager.fetchMessages(topicName, partition, offset, maxMessages);
-        
+
         // Serialize messages
         ByteBuffer responseBuffer = ByteBuffer.allocate(4 + messages.size() * 1024); // Rough estimate
         responseBuffer.putInt(messages.size());
-        
+
         for (Message message : messages) {
             byte[] messageData = message.serialize();
             responseBuffer.putInt(messageData.length);
             responseBuffer.put(messageData);
         }
-        
+
         byte[] responseData = new byte[responseBuffer.position()];
         responseBuffer.rewind();
         responseBuffer.get(responseData);
-        
+
         return new Response(Response.Status.SUCCESS, responseData);
     }
 
@@ -318,56 +318,56 @@ public class KafkaServer {
 
     private Response handleCreateTopicRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Read partition count
         int partitionCount = buffer.getInt();
-        
+
         // Create topic
         topicManager.createTopic(topicName, partitionCount);
-        
+
         return new Response(Response.Status.SUCCESS, new byte[0]);
     }
 
     private Response handleListTopicsRequest(Request request) {
         var topics = topicManager.listTopics();
-        
+
         ByteBuffer buffer = ByteBuffer.allocate(topics.size() * 64); // Rough estimate
         buffer.putInt(topics.size());
-        
+
         for (String topicName : topics) {
             byte[] nameBytes = topicName.getBytes();
             buffer.putInt(nameBytes.length);
             buffer.put(nameBytes);
         }
-        
+
         byte[] responseData = new byte[buffer.position()];
         buffer.rewind();
         buffer.get(responseData);
-        
+
         return new Response(Response.Status.SUCCESS, responseData);
     }
 
     private Response handleDescribeTopicRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Get topic metadata
         var metadata = topicManager.getTopicMetadata(topicName);
         if (metadata == null) {
             return new Response(Response.Status.TOPIC_NOT_FOUND, "Topic not found: " + topicName);
         }
-        
+
         // Serialize metadata (simplified)
         String metadataJson = metadata.toString();
         return new Response(Response.Status.SUCCESS, metadataJson.getBytes());
@@ -375,55 +375,55 @@ public class KafkaServer {
 
     private Response handleCommitOffsetRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read group ID
         int groupIdLength = buffer.getInt();
         byte[] groupIdBytes = new byte[groupIdLength];
         buffer.get(groupIdBytes);
         String groupId = new String(groupIdBytes);
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Read partition
         int partition = buffer.getInt();
-        
+
         // Read offset
         long offset = buffer.getLong();
-        
+
         // Commit offset
         offsetManager.commitOffset(groupId, topicName, partition, offset);
-        
+
         return new Response(Response.Status.SUCCESS, new byte[0]);
     }
 
     private Response handleGetOffsetRequest(Request request) {
         ByteBuffer buffer = ByteBuffer.wrap(request.getData());
-        
+
         // Read group ID
         int groupIdLength = buffer.getInt();
         byte[] groupIdBytes = new byte[groupIdLength];
         buffer.get(groupIdBytes);
         String groupId = new String(groupIdBytes);
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topicName = new String(topicBytes);
-        
+
         // Read partition
         int partition = buffer.getInt();
-        
+
         // Get offset
         long offset = offsetManager.getCommittedOffset(groupId, topicName, partition);
-        
+
         ByteBuffer responseBuffer = ByteBuffer.allocate(8);
         responseBuffer.putLong(offset);
-        
+
         return new Response(Response.Status.SUCCESS, responseBuffer.array());
     }
 
@@ -465,9 +465,12 @@ public class KafkaServer {
         json.append("  \"bytes_consumed\": ").append(metrics.getBytesConsumed()).append(",\n");
         json.append("  \"requests_processed\": ").append(metrics.getRequestsProcessed()).append(",\n");
         json.append("  \"errors_count\": ").append(metrics.getErrorsCount()).append(",\n");
-        json.append("  \"avg_produce_latency_ms\": ").append(String.format("%.2f", metrics.getAverageProduceLatency())).append(",\n");
-        json.append("  \"avg_consume_latency_ms\": ").append(String.format("%.2f", metrics.getAverageConsumeLatency())).append(",\n");
-        json.append("  \"avg_request_latency_ms\": ").append(String.format("%.2f", metrics.getAverageRequestLatency())).append(",\n");
+        json.append("  \"avg_produce_latency_ms\": ").append(String.format("%.2f", metrics.getAverageProduceLatency()))
+                .append(",\n");
+        json.append("  \"avg_consume_latency_ms\": ").append(String.format("%.2f", metrics.getAverageConsumeLatency()))
+                .append(",\n");
+        json.append("  \"avg_request_latency_ms\": ").append(String.format("%.2f", metrics.getAverageRequestLatency()))
+                .append(",\n");
         json.append("  \"uptime_ms\": ").append(metrics.getUptime()).append(",\n");
         json.append("  \"time_since_reset_ms\": ").append(metrics.getTimeSinceReset()).append("\n");
         json.append("}");
@@ -480,21 +483,20 @@ public class KafkaServer {
     public static void main(String[] args) {
         // Print configuration on startup
         KafkaConfig.printConfiguration();
-        
-        int port = args.length > 0 ? Integer.parseInt(args[0]) : 
-                  KafkaConfig.getInt(KafkaConfig.SERVER_PORT, 9092);
-        
+
+        int port = args.length > 0 ? Integer.parseInt(args[0]) : KafkaConfig.getInt(KafkaConfig.SERVER_PORT, 9092);
+
         KafkaServer server = new KafkaServer(port);
-        
+
         // Add shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             Logger.info("Shutting down server...");
             server.stop();
         }));
-        
+
         try {
             server.start();
-            
+
             // Keep the main thread alive
             while (server.running.get()) {
                 Thread.sleep(1000);

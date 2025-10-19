@@ -35,46 +35,46 @@ public class BatchMessage {
      */
     public static BatchMessage deserialize(byte[] data) throws IOException {
         ByteBuffer buffer = ByteBuffer.wrap(data);
-        
+
         // Read topic name
         int topicLength = buffer.getInt();
         byte[] topicBytes = new byte[topicLength];
         buffer.get(topicBytes);
         String topic = new String(topicBytes);
-        
+
         // Read partition
         int partition = buffer.getInt();
-        
+
         // Read timestamp
         long timestamp = buffer.getLong();
-        
+
         // Read batch ID
         int batchIdLength = buffer.getInt();
         byte[] batchIdBytes = new byte[batchIdLength];
         buffer.get(batchIdBytes);
         String batchId = new String(batchIdBytes);
-        
+
         // Read CRC32
         int crc32 = buffer.getInt();
-        
+
         // Read message count
         int messageCount = buffer.getInt();
         List<Message> messages = new ArrayList<>();
-        
+
         for (int i = 0; i < messageCount; i++) {
             int messageLength = buffer.getInt();
             byte[] messageData = new byte[messageLength];
             buffer.get(messageData);
-            
+
             Message message = Message.deserialize(messageData);
             messages.add(message);
         }
-        
+
         BatchMessage batchMessage = new BatchMessage(topic, partition, messages);
         batchMessage.timestamp = timestamp;
         batchMessage.batchId = batchId;
         batchMessage.crc32 = crc32;
-        
+
         return batchMessage;
     }
 
@@ -85,15 +85,15 @@ public class BatchMessage {
         // Calculate total size
         int topicLength = topic.getBytes().length;
         int batchIdLength = batchId.getBytes().length;
-        
+
         int totalSize = 4 + topicLength + 4 + 8 + 4 + batchIdLength + 4 + 4; // Header
         for (Message message : messages) {
             byte[] messageData = message.serialize();
             totalSize += 4 + messageData.length; // Length + data
         }
-        
+
         ByteBuffer buffer = ByteBuffer.allocate(totalSize);
-        
+
         // Write header
         buffer.putInt(topicLength);
         buffer.put(topic.getBytes());
@@ -102,17 +102,17 @@ public class BatchMessage {
         buffer.putInt(batchIdLength);
         buffer.put(batchId.getBytes());
         buffer.putInt(crc32);
-        
+
         // Write message count
         buffer.putInt(messages.size());
-        
+
         // Write messages
         for (Message message : messages) {
             byte[] messageData = message.serialize();
             buffer.putInt(messageData.length);
             buffer.put(messageData);
         }
-        
+
         return buffer.array();
     }
 
@@ -132,11 +132,11 @@ public class BatchMessage {
         crc.update(partition);
         crc.update((int) timestamp);
         crc.update(batchId.getBytes());
-        
+
         for (Message message : messages) {
             crc.update(message.serialize());
         }
-        
+
         return (int) crc.getValue();
     }
 
@@ -179,24 +179,44 @@ public class BatchMessage {
                     }
                 })
                 .sum();
-        
+
         long compressedSize = getTotalSize();
-        
+
         if (originalSize == 0) {
             return 1.0;
         }
-        
+
         return (double) compressedSize / originalSize;
     }
 
     // Getters
-    public String getTopic() { return topic; }
-    public int getPartition() { return partition; }
-    public List<Message> getMessages() { return new ArrayList<>(messages); }
-    public long getTimestamp() { return timestamp; }
-    public String getBatchId() { return batchId; }
-    public int getCrc32() { return crc32; }
-    public int getMessageCount() { return messages.size(); }
+    public String getTopic() {
+        return topic;
+    }
+
+    public int getPartition() {
+        return partition;
+    }
+
+    public List<Message> getMessages() {
+        return new ArrayList<>(messages);
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public String getBatchId() {
+        return batchId;
+    }
+
+    public int getCrc32() {
+        return crc32;
+    }
+
+    public int getMessageCount() {
+        return messages.size();
+    }
 
     @Override
     public String toString() {
@@ -206,8 +226,10 @@ public class BatchMessage {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         BatchMessage that = (BatchMessage) o;
         return partition == that.partition &&
                 timestamp == that.timestamp &&
@@ -222,3 +244,4 @@ public class BatchMessage {
         return Objects.hash(topic, partition, messages, timestamp, batchId, crc32);
     }
 }
+
